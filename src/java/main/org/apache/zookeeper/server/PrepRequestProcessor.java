@@ -116,7 +116,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             RequestProcessor nextProcessor) {
         super("ProcessThread(sid:" + zks.getServerId() + " cport:"
                 + zks.getClientPort() + "):", zks.getZooKeeperServerListener());
-        this.nextProcessor = nextProcessor;
+        this.nextProcessor = nextProcessor;//processor 处理链的下一个处理器
         this.zks = zks;
     }
 

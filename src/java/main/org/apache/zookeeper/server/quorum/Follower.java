@@ -74,7 +74,7 @@ public class Follower extends Learner{
         try {
             QuorumServer leaderServer = findLeader();
             try {
-                connectToLeader(leaderServer.addr, leaderServer.hostname);
+                connectToLeader(leaderServer.addr, leaderServer.hostname);//主动和leader建立连接，2888
                 long newEpochZxid = registerWithLeader(Leader.FOLLOWERINFO);
                 if (self.isReconfigStateChange())
                    throw new Exception("learned about role change");
@@ -86,7 +86,7 @@ public class Follower extends Learner{
                             + " is less than our accepted epoch " + ZxidUtils.zxidToString(self.getAcceptedEpoch()));
                     throw new IOException("Error: Epoch of leader is lower");
                 }
-                syncWithLeader(newEpochZxid);                
+                syncWithLeader(newEpochZxid); //此处初始化follower的processor
                 QuorumPacket qp = new QuorumPacket();
                 while (this.isRunning()) {
                     readPacket(qp);

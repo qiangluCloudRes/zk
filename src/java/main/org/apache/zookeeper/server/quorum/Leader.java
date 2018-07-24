@@ -426,7 +426,7 @@ public class Leader {
      * @throws IOException
      * @throws InterruptedException
      */
-    void lead() throws IOException, InterruptedException {
+    void lead() throws IOException, InterruptedException {//启动leader 流程
         self.end_fle = Time.currentElapsedTime();
         long electionTimeTaken = self.end_fle - self.start_fle;
         self.setElectionTimeTaken(electionTimeTaken);
@@ -534,7 +534,7 @@ public class Leader {
                  return;
              }
 
-             startZkServer();
+             startZkServer();// LeaderZooKeeperServer 的processor 在这一步初始化
              
             /**
              * WARNING: do not use this for anything other than QA testing
@@ -1283,7 +1283,7 @@ public class Leader {
             allowedToCommit = false;
         }
         
-        zk.startup();
+        zk.startup();//初始化processor
         /*
          * Update the election vote here to ensure that all members of the
          * ensemble report the same vote to new servers that start up and

@@ -79,7 +79,7 @@ public class QuorumPeerMain {
     public static void main(String[] args) {
         QuorumPeerMain main = new QuorumPeerMain();
         try {
-            main.initializeAndRun(args);
+            main.initializeAndRun(args); //zk 启动入口
         } catch (IllegalArgumentException e) {
             LOG.error("Invalid arguments, exiting abnormally", e);
             LOG.info(USAGE);
@@ -120,12 +120,12 @@ public class QuorumPeerMain {
         purgeMgr.start();
 
         if (args.length == 1 && config.isDistributed()) {
-            runFromConfig(config);
+            runFromConfig(config);//器群启动入口,需要执行选主
         } else {
             LOG.warn("Either no config or no quorum defined in config, running "
                     + " in standalone mode");
             // there is only server in the quorum -- run as standalone
-            ZooKeeperServerMain.main(args);
+            ZooKeeperServerMain.main(args);//单点启动入口
         }
     }
 
@@ -133,7 +133,7 @@ public class QuorumPeerMain {
             throws IOException, AdminServerException
     {
       try {
-          ManagedUtil.registerLog4jMBeans();
+          ManagedUtil.registerLog4jMBeans();//log空间初始化
       } catch (JMException e) {
           LOG.warn("Unable to register log4j JMX control", e);
       }
@@ -144,7 +144,7 @@ public class QuorumPeerMain {
           ServerCnxnFactory secureCnxnFactory = null;
 
           if (config.getClientPortAddress() != null) {
-              cnxnFactory = ServerCnxnFactory.createFactory();
+              cnxnFactory = ServerCnxnFactory.createFactory();// 初始化对外服务的端
               cnxnFactory.configure(config.getClientPortAddress(),
                       config.getMaxClientCnxns(),
                       false);
@@ -157,8 +157,8 @@ public class QuorumPeerMain {
                       true);
           }
 
-          quorumPeer = getQuorumPeer();
-          quorumPeer.setTxnFactory(new FileTxnSnapLog(
+          quorumPeer = getQuorumPeer();//quorumPeer 是对zk服务的线程的封装。以下初始化zk线程信息
+          quorumPeer.setTxnFactory(new FileTxnSnapLog(//初始化日志路径
                       config.getDataLogDir(),
                       config.getDataDir()));
           quorumPeer.enableLocalSessions(config.areLocalSessionsEnabled());
@@ -166,7 +166,7 @@ public class QuorumPeerMain {
               config.isLocalSessionsUpgradingEnabled());
           //quorumPeer.setQuorumPeers(config.getAllMembers());
           quorumPeer.setElectionType(config.getElectionAlg());
-          quorumPeer.setMyid(config.getServerId());
+          quorumPeer.setMyid(config.getServerId());//获取在配置文件中去获取当前节点的id
           quorumPeer.setTickTime(config.getTickTime());
           quorumPeer.setMinSessionTimeout(config.getMinSessionTimeout());
           quorumPeer.setMaxSessionTimeout(config.getMaxSessionTimeout());
@@ -197,8 +197,8 @@ public class QuorumPeerMain {
           quorumPeer.setQuorumCnxnThreadsSize(config.quorumCnxnThreadsSize);
           quorumPeer.initialize();
           
-          quorumPeer.start();
-          quorumPeer.join();
+          quorumPeer.start();//启动zk线程
+          quorumPeer.join();//jzk 线程join 后，当前线程在quorumPeer线程退出前不会退出
       } catch (InterruptedException e) {
           // warn, but generally this is ok
           LOG.warn("Quorum Peer interrupted", e);

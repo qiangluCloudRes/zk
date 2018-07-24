@@ -86,7 +86,7 @@ public class FinalRequestProcessor implements RequestProcessor {
         this.zks = zks;
     }
 
-    public void processRequest(Request request) {
+    public void processRequest(Request request) {// 处理client请求，如查询、ping、create,其中create、delete等请求交由leader处理
         if (LOG.isDebugEnabled()) {
             LOG.debug("Processing request:: " + request);
         }

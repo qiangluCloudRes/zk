@@ -56,6 +56,8 @@
     <dependency org="jline" name="jline" rev="${jline.version}" transitive="false"
                 conf="optional->default"/>
 
+    <dependency org="com.alibaba" name="fastjson" rev="1.2.47"/>
+
     <dependency org="org.apache.yetus" name="audience-annotations"
                 rev="${audience-annotations.version}"/>
 

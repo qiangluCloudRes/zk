@@ -194,7 +194,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             this.acceptKey =
                 acceptSocket.register(selector, SelectionKey.OP_ACCEPT);
             this.selectorThreads = Collections.unmodifiableList(
-                new ArrayList<SelectorThread>(selectorThreads));
+                new ArrayList<SelectorThread>(selectorThreads));//事件将会被注册到多个selector中
             selectorIterator = this.selectorThreads.iterator();
         }
 
@@ -202,7 +202,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             try {
                 while (!stopped && !acceptSocket.socket().isClosed()) {
                     try {
-                        select();
+                        select();//处理来自2181的连接
                     } catch (RuntimeException e) {
                         LOG.warn("Ignoring unexpected runtime exception", e);
                     } catch (Exception e) {
@@ -230,15 +230,15 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
                 Iterator<SelectionKey> selectedKeys =
                     selector.selectedKeys().iterator();
-                while (!stopped && selectedKeys.hasNext()) {
-                    SelectionKey key = selectedKeys.next();
-                    selectedKeys.remove();
+                while (!stopped && selectedKeys.hasNext()) {//2181端口有连接事件产生
+                    SelectionKey key = selectedKeys.next();//遍历keys获取准备好的事件
+                    selectedKeys.remove();//由于selector的keys不会自动删除，所以这里删除已处理的事件
 
                     if (!key.isValid()) {
                         continue;
                     }
                     if (key.isAcceptable()) {
-                        if (!doAccept()) {
+                        if (!doAccept()) {//接受连接
                             // If unable to pull a new connection off the accept
                             // queue, pause accepting to give us time to free
                             // up file descriptors and so the accept thread
@@ -283,7 +283,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             boolean accepted = false;
             SocketChannel sc = null;
             try {
-                sc = acceptSocket.accept();
+                sc = acceptSocket.accept();//有ServerSocketChannel 获取连接过来的 SocketChannel
                 accepted = true;
                 InetAddress ia = sc.socket().getInetAddress();
                 int cnxncount = getClientCnxnCount(ia);
@@ -301,8 +301,8 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 if (!selectorIterator.hasNext()) {
                     selectorIterator = selectorThreads.iterator();
                 }
-                SelectorThread selectorThread = selectorIterator.next();
-                if (!selectorThread.addAcceptedConnection(sc)) {
+                SelectorThread selectorThread = selectorIterator.next(); //遍历获取其中线程池的selector线程，由该线程负责该建立后的连接的读写操作
+                if (!selectorThread.addAcceptedConnection(sc)) {//提交给异步线程处理
                     throw new IOException(
                         "Unable to add connection to selector queue"
                         + (stopped ? " (shutdown in progress)" : ""));
@@ -389,7 +389,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 while (!stopped) {
                     try {
                         select();
-                        processAcceptedConnections();
+                        processAcceptedConnections();//此处构建NIOServerCnxn，key.attch(NIOServerCnxn)
                         processInterestOpsUpdateRequests();
                     } catch (RuntimeException e) {
                         LOG.warn("Ignoring unexpected runtime exception", e);
@@ -421,7 +421,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             }
         }
 
-        private void select() {
+        private void select() {//处理由acceptor处理过后的连接的IO操作
             try {
                 selector.select();
 
@@ -430,7 +430,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                     new ArrayList<SelectionKey>(selected);
                 Collections.shuffle(selectedList);
                 Iterator<SelectionKey> selectedKeys = selectedList.iterator();
-                while(!stopped && selectedKeys.hasNext()) {
+                while(!stopped && selectedKeys.hasNext()) {//遍历注册在该selectorThread线程上的selector的事件
                     SelectionKey key = selectedKeys.next();
                     selected.remove(key);
 
@@ -439,7 +439,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                         continue;
                     }
                     if (key.isReadable() || key.isWritable()) {
-                        handleIO(key);
+                         handleIO(key);//当前处理的连接的事件已准备好可读或可写
                     } else {
                         LOG.warn("Unexpected ops in select " + key.readyOps());
                     }
@@ -475,8 +475,8 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             while (!stopped && (accepted = acceptedQueue.poll()) != null) {
                 SelectionKey key = null;
                 try {
-                    key = accepted.register(selector, SelectionKey.OP_READ);
-                    NIOServerCnxn cnxn = createConnection(accepted, key, this);
+                    key = accepted.register(selector, SelectionKey.OP_READ);//注册：只对读事件感兴趣
+                    NIOServerCnxn cnxn = createConnection(accepted, key, this);//构建IO处理对象
                     key.attach(cnxn);
                     addCnxn(cnxn);
                 } catch (IOException e) {
@@ -678,7 +678,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                  + (directBufferBytes == 0 ? "gathered writes." :
                     ("" + (directBufferBytes/1024) + " kB direct buffers.")));
         for(int i=0; i<numSelectorThreads; ++i) {
-            selectorThreads.add(new SelectorThread(i));
+            selectorThreads.add(new SelectorThread(i));//每个Selector线程有一个单独的selector对象
         }
 
         this.ss = ServerSocketChannel.open();
@@ -686,6 +686,8 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         LOG.info("binding to port " + addr);
         ss.socket().bind(addr);
         ss.configureBlocking(false);
+        //初始化接受线程，监听2181端口，接受来自client的请求
+        //ss 监听2181 端口来自client的请求，selectorThreads 为selector线程池，client建立连接后，分别由对应绑定的selector线程做io的读写操作
         acceptThread = new AcceptThread(ss, addr, selectorThreads);
     }
 
@@ -741,14 +743,14 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             workerPool = new WorkerService(
                 "NIOWorker", numWorkerThreads, false);
         }
-        for(SelectorThread thread : selectorThreads) {
+        for(SelectorThread thread : selectorThreads) {//启动selector线程，处理2181端口的事件，接受处理来自客户端的请求
             if (thread.getState() == Thread.State.NEW) {
                 thread.start();
             }
         }
         // ensure thread is started once and only once
         if (acceptThread.getState() == Thread.State.NEW) {
-            acceptThread.start();
+            acceptThread.start();//启动acceptor线程，接受来自客户端的连接
         }
         if (expirerThread.getState() == Thread.State.NEW) {
             expirerThread.start();

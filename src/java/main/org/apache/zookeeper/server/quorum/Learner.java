@@ -134,7 +134,7 @@ public class Learner {
      *                the proposal packet to be sent to the leader
      * @throws IOException
      */
-    void writePacket(QuorumPacket pp, boolean flush) throws IOException {
+    void writePacket(QuorumPacket pp, boolean flush) throws IOException { //发送消息给leader，通过2888端口
         synchronized (leaderOs) {
             if (pp != null) {
                 leaderOs.writeRecord(pp, "packet");
@@ -152,7 +152,7 @@ public class Learner {
      *                the packet to be instantiated
      * @throws IOException
      */
-    void readPacket(QuorumPacket pp) throws IOException {
+    void readPacket(QuorumPacket pp) throws IOException {  //与leader 通信，读取leader发过来的消息，通过端口2888
         synchronized (leaderIs) {
             leaderIs.readRecord(pp, "packet");
         }
@@ -173,6 +173,7 @@ public class Learner {
      * @throws IOException
      */
     void request(Request request) throws IOException {
+        //follower从client接收到的create、delete等请求需要转发给leader处理。消息通过2888集群通信端口传递
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream oa = new DataOutputStream(baos);
         oa.writeLong(request.sessionId);
@@ -289,7 +290,7 @@ public class Learner {
         self.authLearner.authenticate(sock, hostname);
 
         leaderIs = BinaryInputArchive.getArchive(new BufferedInputStream(
-                sock.getInputStream()));
+                sock.getInputStream()));//成功与leader连接,封装连接后的输入输出流
         bufferedOutput = new BufferedOutputStream(sock.getOutputStream());
         leaderOs = BinaryOutputArchive.getArchive(bufferedOutput);
     }   
@@ -560,6 +561,7 @@ public class Learner {
         ack.setZxid(ZxidUtils.makeZxid(newEpoch, 0));
         writePacket(ack, true);
         sock.setSoTimeout(self.tickTime * self.syncLimit);
+        //followerZooKeeperServer 重写了ZooKeeperServer的setupRequestProcessors 方法,  follower 的processor 在此处初始化
         zk.startup();
         /*
          * Update the election vote here to ensure that all members of the

@@ -604,7 +604,7 @@ public class QuorumCnxManager {
             /*
              * Otherwise send to the corresponding thread to send.
              */
-        } else {
+        } else {//获取接受该投票的节点连接，如果未建立连接，先建立连接后发送
              /*
               * Start a new connection if doesn't have one already.
               */
@@ -634,7 +634,7 @@ public class QuorumCnxManager {
         }
 
         Socket sock = null;
-        try {
+        try { // leader选举,连接到 2181 2888 3888 中的3888，2181 用于client通信，2888 集群通信
              LOG.debug("Opening channel to server " + sid);
              sock = new Socket();
              setSockOpts(sock);
@@ -824,7 +824,7 @@ public class QuorumCnxManager {
     /**
      * Thread to listen on some port
      */
-    public class Listener extends ZooKeeperThread {
+    public class Listener extends ZooKeeperThread { //监听3888 端口，接受来自leader选举的连接
 
         volatile ServerSocket ss = null;
 
@@ -858,7 +858,7 @@ public class QuorumCnxManager {
                     LOG.info("My election bind port: " + addr.toString());
                     setName(addr.toString());
                     ss.bind(addr);
-                    while (!shutdown) {
+                    while (!shutdown)  {
                         try {
                             client = ss.accept();
                             setSockOpts(client);
@@ -1038,9 +1038,9 @@ public class QuorumCnxManager {
                  * message than that stored in lastMessage. To avoid sending
                  * stale message, we should send the message in the send queue.
                  */
-                ArrayBlockingQueue<ByteBuffer> bq = queueSendMap.get(sid);
+                ArrayBlockingQueue<ByteBuffer> bq = queueSendMap.get(sid); // 根据myid 获取 与当前节点连接的节点的待发送队列
                 if (bq == null || isSendQueueEmpty(bq)) {
-                   ByteBuffer b = lastMessageSent.get(sid);
+                   ByteBuffer b = lastMessageSent.get(sid); //如果发送队列为空，发送上次发送的最后一条消息
                    if (b != null) {
                        LOG.debug("Attempting to send lastMessage to sid=" + sid);
                        send(b);
@@ -1069,6 +1069,7 @@ public class QuorumCnxManager {
                         if(b != null){
                             lastMessageSent.put(sid, b);
                             send(b);
+                            System.out.println("send vote message to " + sid);
                         }
                     } catch (InterruptedException e) {
                         LOG.warn("Interrupted while waiting for message on queue",
@@ -1153,6 +1154,7 @@ public class QuorumCnxManager {
                     din.readFully(msgArray, 0, length);
                     ByteBuffer message = ByteBuffer.wrap(msgArray);
                     addToRecvQueue(new Message(message.duplicate(), sid));
+                    System.out.println("receive vote message from " + sid);
                 }
             } catch (Exception e) {
                 LOG.warn("Connection broken for id " + sid + ", my id = "
@@ -1169,7 +1171,7 @@ public class QuorumCnxManager {
      * Inserts an element in the specified queue. If the Queue is full, this
      * method removes an element from the head of the Queue and then inserts
      * the element at the tail. It can happen that the an element is removed
-     * by another thread in {@link SendWorker#processMessage() processMessage}
+     * by another thread in {@link SendWorker# processMessage() processMessage}
      * method before this method attempts to remove an element from the queue.
      * This will cause {@link ArrayBlockingQueue#remove() remove} to throw an
      * exception, which is safe to ignore.

@@ -681,7 +681,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         cnxn.setSessionId(sessionId);
         Request si = new Request(cnxn, sessionId, 0, OpCode.createSession, to, null);
         setLocalSessionFlag(si);
-        submitRequest(si);
+        submitRequest(si);//将事件提交给请求处理链处理，follower的处理链在FollowerZookeeperServer 中构建
         return sessionId;
     }
 
@@ -813,6 +813,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             touch(si.cnxn);
             boolean validpacket = Request.isValid(si.type);
             if (validpacket) {
+                //firstProcessor 请求处理链中具体包含了哪些processor，follower 查看FollowerZookeeperServer 的构建，leader与follower不同
                 firstProcessor.processRequest(si);
                 if (si.cnxn != null) {
                     incInProcess();
@@ -1133,7 +1134,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 // Always treat packet from the client as a possible
                 // local request.
                 setLocalSessionFlag(si);
-                submitRequest(si);
+                submitRequest(si);//将事件提交给请求处理链处理，follower的处理链在FollowerZookeeperServer 中构建
             }
         }
         cnxn.incrOutstandingRequests(h);

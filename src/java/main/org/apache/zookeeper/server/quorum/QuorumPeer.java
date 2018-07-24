@@ -849,16 +849,16 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
         if (!getView().containsKey(myid)) {
             throw new RuntimeException("My id " + myid + " not in the peer list");
          }
-        loadDataBase();
-        startServerCnxnFactory();
+        loadDataBase();//加载本地数据
+        startServerCnxnFactory();//启动线程监听2181端口，接受来自客户端的请求
         try {
             adminServer.start();
         } catch (AdminServerException e) {
             LOG.warn("Problem starting AdminServer", e);
             System.out.println(e);
         }
-        startLeaderElection();
-        super.start();
+        startLeaderElection();//启动leader选举，包括创建选举算法，监听来自其他节点的投票、回复。
+        super.start();//启动zk线程，主要逻辑在run方法中
     }
 
     private void loadDataBase() {
@@ -912,7 +912,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
     }
     synchronized public void startLeaderElection() {
         try {
-            if (getPeerState() == ServerState.LOOKING) {
+            if (getPeerState() == ServerState.LOOKING) {//判断当前节点是否处于looking状态，如果是当前投票投给自己
                 currentVote = new Vote(myid, getLastLoggedZxid(), getCurrentEpoch());
             }
         } catch(IOException e) {
@@ -1002,15 +1002,15 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
     public Leader leader;
     public Observer observer;
 
-    protected Follower makeFollower(FileTxnSnapLog logFactory) throws IOException {
+    protected Follower makeFollower(FileTxnSnapLog logFactory) throws IOException {//创建follower实例
         return new Follower(this, new FollowerZooKeeperServer(logFactory, this, this.zkDb));
     }
 
-    protected Leader makeLeader(FileTxnSnapLog logFactory) throws IOException {
+    protected Leader makeLeader(FileTxnSnapLog logFactory) throws IOException {//创建leader实例
         return new Leader(this, new LeaderZooKeeperServer(logFactory, this, this.zkDb));
     }
 
-    protected Observer makeObserver(FileTxnSnapLog logFactory) throws IOException {
+    protected Observer makeObserver(FileTxnSnapLog logFactory) throws IOException {//创建observer实例
         return new Observer(this, new ObserverZooKeeperServer(logFactory, this, this.zkDb));
     }
 
@@ -1031,8 +1031,8 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             QuorumCnxManager.Listener listener = qcm.listener;
             if(listener != null){
                 listener.start();
-                FastLeaderElection fle = new FastLeaderElection(this, qcm);
-                fle.start();
+                FastLeaderElection fle = new FastLeaderElection(this, qcm);//目前使用FastLeaderElection
+                fle.start();//创建并启动选举线程，线程主要处理来自其他节点的投票，并统计投票信息
                 le = fle;
             } else {
                 LOG.error("Null listener when initializing cnx manager");
@@ -1075,7 +1075,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
     boolean shuttingDownLE = false;
     
     @Override
-    public void run() {
+    public void run() {//zk 服务的主线程处理逻辑
         updateThreadName();
 
         LOG.debug("Starting quorum peer");
@@ -1111,10 +1111,10 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             /*
              * Main loop
              */
-            while (running) {
-                switch (getPeerState()) {
-                case LOOKING:
-                    LOG.info("LOOKING");
+            while (running) {//判断当前线程是否退出，如果不退出，则不停的执行选主的流程
+                switch (getPeerState()) {//获取当前节点的状态，跟当前节点的状态执行不同的业务逻辑
+                case LOOKING://当前节点未能确认角色，或则集群中未选出leader
+                    System.out.println("LOOKING");
 
                     if (Boolean.getBoolean("readonlymode.enabled")) {
                         LOG.info("Attempting to start ReadOnlyZooKeeperServer");
@@ -1175,38 +1175,38 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                         }                        
                     }
                     break;
-                case OBSERVING:
+                case OBSERVING://当前节点是OBSERVING，不参与投票、选主
                     try {
-                        LOG.info("OBSERVING");
+                       System.out.println("OBSERVING");
                         setObserver(makeObserver(logFactory));
                         observer.observeLeader();
                     } catch (Exception e) {
                         LOG.warn("Unexpected exception",e );
                     } finally {
                         observer.shutdown();
-                        setObserver(null);  
+                        setObserver(null);//leader 退出 从新选举
                        updateServerState();
                     }
                     break;
-                case FOLLOWING:
+                case FOLLOWING://当前节点为follower
                     try {
-                       LOG.info("FOLLOWING");
+                        System.out.println("FOLLOWING");
                         setFollower(makeFollower(logFactory));
-                        follower.followLeader();
+                        follower.followLeader();  //当leader选举结束后，如果当前节点是follower，则初始化follower逻辑
                     } catch (Exception e) {
                        LOG.warn("Unexpected exception",e);
                     } finally {
                        follower.shutdown();
-                       setFollower(null);
+                       setFollower(null);//leader 退出 从新选举
                        updateServerState();
                     }
                     break;
-                case LEADING:
-                    LOG.info("LEADING");
+                case LEADING://当前节点为leader
+                    System.out.println("LEADING");
                     try {
                         setLeader(makeLeader(logFactory));
-                        leader.lead();
-                        setLeader(null);
+                        leader.lead();//当leader选举结束之后，如果发现当前节点是leader节点，则监听2888端口，接受集群的其他节点的连接，同步数据
+                        setLeader(null);//leader 退出 从新选举
                     } catch (Exception e) {
                         LOG.warn("Unexpected exception",e);
                     } finally {
@@ -1685,10 +1685,10 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
     private void startServerCnxnFactory() {
         if (cnxnFactory != null) {
-            cnxnFactory.start();
+            cnxnFactory.start();//参数缺省，此处使用的是NIOServerCnxnFactory
         }
         if (secureCnxnFactory != null) {
-            secureCnxnFactory.start();
+            secureCnxnFactory.start();//NIOServerCnxnFactory
         }
     }
 
@@ -1961,8 +1961,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
     /**
      * Updates leader election info to avoid inconsistencies when
      * a new server tries to join the ensemble.
-     * 
-     * @see https://issues.apache.org/jira/browse/ZOOKEEPER-1732
+     *
      */
     protected void updateElectionVote(long newEpoch) {
         Vote currentVote = getCurrentVote();
