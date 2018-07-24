@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.zookeeper.ZooDefs.OpCode;
@@ -173,14 +174,14 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                  * the following two lines is important!).
                  */
                 commitIsWaiting = !committedRequests.isEmpty();
-                requestsToProcess =  queuedRequests.size();
+                requestsToProcess =  queuedRequests.size();// 如果当前节点是follower，则请求从FollowerRequestProcessor 提交过来
                 // Avoid sync if we have something to do
-                if (requestsToProcess == 0 && !commitIsWaiting){
+                if (requestsToProcess == 0 && !commitIsWaiting){ //当前没有请求，并且没有请求被commit
                     // Waiting for requests to process
                     synchronized (this) {
                         while (!stopped && requestsToProcess == 0
-                                && !commitIsWaiting) {
-                            wait();
+                                && !commitIsWaiting) { //获取等到同步锁之后再次确认条件
+                            wait();//队列空时将线程挂起
                             commitIsWaiting = !committedRequests.isEmpty();
                             requestsToProcess = queuedRequests.size();
                         }
