@@ -302,7 +302,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                     selectorIterator = selectorThreads.iterator();
                 }
                 SelectorThread selectorThread = selectorIterator.next(); //遍历获取其中线程池的selector线程，由该线程负责该建立后的连接的读写操作
-                if (!selectorThread.addAcceptedConnection(sc)) {//提交给异步线程处理
+                if (!selectorThread.addAcceptedConnection(sc)) {//将来自2181端口的请求提交给异步线程处理
                     throw new IOException(
                         "Unable to add connection to selector queue"
                         + (stopped ? " (shutdown in progress)" : ""));
@@ -356,7 +356,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
          * so only the selector thread modifies what keys are registered
          * with the selector.
          */
-        public boolean addAcceptedConnection(SocketChannel accepted) {
+        public boolean addAcceptedConnection(SocketChannel accepted) {//将来自2181端口的请求缓冲到队列，run做业务逻辑
             if (stopped || !acceptedQueue.offer(accepted)) {
                 return false;
             }
