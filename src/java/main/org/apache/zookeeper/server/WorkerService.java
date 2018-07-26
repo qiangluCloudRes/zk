@@ -108,7 +108,7 @@ public class WorkerService {
      * worker thread pool is not being used, work is done directly by
      * this thread.
      */
-    public void schedule(WorkRequest workRequest, long id) {
+    public void  schedule(WorkRequest workRequest, long id) {
         if (stopped) {
             workRequest.cleanup();
             return;

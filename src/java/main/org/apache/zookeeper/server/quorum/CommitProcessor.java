@@ -84,7 +84,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
      * Incoming requests.
      */
     protected LinkedBlockingQueue<Request> queuedRequests =
-        new LinkedBlockingQueue<Request>();
+        new LinkedBlockingQueue<Request>(); //接收到的所有请求
 
     /**
      * Requests that have been committed.
@@ -197,22 +197,22 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                 while (!stopped && requestsToProcess > 0
                         && (request = queuedRequests.poll()) != null) {
                     requestsToProcess--;
-                    if (needCommit(request)
-                            || pendingRequests.containsKey(request.sessionId)) {
+                    if (needCommit(request) //查看从queuedRequests 队列拿到的request是否是需要commit
+                            || pendingRequests.containsKey(request.sessionId)) { //或者是否是sync请求
                         // Add request to pending
                         LinkedList<Request> requests = pendingRequests
                                 .get(request.sessionId);
                         if (requests == null) {
                             requests = new LinkedList<Request>();
-                            pendingRequests.put(request.sessionId, requests);
+                            pendingRequests.put(request.sessionId, requests); //
                         }
-                        requests.addLast(request);
+                        requests.addLast(request);//将pending、commit请求添加到队列中
                     }
-                    else {
+                    else {//非commit 或者 sync 请求则转发给下一个处理器
                         sendToNextProcessor(request);
                     }
                     /*
-                     * Stop feeding the pool if there is a local pending update
+                      * Stop feeding the pool if there is a local pending update
                      * and a committed request that is ready. Once we have a
                      * pending request with a waiting committed request, we know
                      * we can process the committed one. This is because commits
@@ -223,6 +223,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                      * server.
                      */
                     if (!pendingRequests.isEmpty() && !committedRequests.isEmpty()){
+                        //如果有sync请求或者是commit 请求，跳出当前while循环，优先处理commit请求
                         /*
                          * We set commitIsWaiting so that we won't check
                          * committedRequests again.
@@ -231,7 +232,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                         break;
                     }
                 }
-
+                //在上面while中处理请求时，发现有pending、commit的请求，优先处理这些请求
                 // Handle a single committed request
                 if (commitIsWaiting && !stopped){
                     waitForEmptyPool();
