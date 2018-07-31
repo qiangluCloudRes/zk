@@ -196,6 +196,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                 Request request = null;
                 while (!stopped && requestsToProcess > 0
                         && (request = queuedRequests.poll()) != null) {
+                    System.out.println("chain 2 request.type: " + request.type + "," + request.zxid);
                     requestsToProcess--;
                     if (needCommit(request) //查看从queuedRequests 队列拿到的request是否是需要commit
                             || pendingRequests.containsKey(request.sessionId)) { //或者是否是sync请求
@@ -207,8 +208,10 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                             pendingRequests.put(request.sessionId, requests); //
                         }
                         requests.addLast(request);//将pending、commit请求添加到队列中
+                        System.out.println("chain 2 need to commit request.type: " + request.type + "," + request.cxid);
                     }
                     else {//非commit 或者 sync 请求则转发给下一个处理器
+                        System.out.println("chain 2 do not need to commit request.type: " + request.type + "," + request.cxid);
                         sendToNextProcessor(request);
                     }
                     /*
@@ -296,14 +299,16 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                              * originated from a different server and there is no local bookkeeping or a local client
                              * session that needs to be notified.
                              */
+                            System.out.println("request zxid : " + request.zxid);
                             topPending.setHdr(request.getHdr());
                             topPending.setTxn(request.getTxn());
                             topPending.zxid = request.zxid;
                             request = topPending;
+
                         }
                     }
 
-                    sendToNextProcessor(request);
+                    sendToNextProcessor(request);//commit或者proposal请求需等待leader处理完成的结果
 
                     waitForEmptyPool();
 
@@ -407,7 +412,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
         }
     }
     
-    public void commit(Request request) {
+    public void commit(Request request) {//处理来自leader的proposal、commit等请求。是因为所有的写请求都转发给我leader处理
         if (stopped || request == null) {
             return;
         }

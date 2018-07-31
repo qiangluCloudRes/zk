@@ -140,7 +140,7 @@ public class ZooKeeperServerMain {
             if (config.getClientPortAddress() != null) {
                 cnxnFactory = ServerCnxnFactory.createFactory();
                 cnxnFactory.configure(config.getClientPortAddress(), config.getMaxClientCnxns(), false);
-                cnxnFactory.startup(zkServer);
+                cnxnFactory.startup(zkServer);//將ZooKeeperServer 引用添加到NIOServerCnxnFactory,当收到客户端请求时，需要处理请求
                 // zkServer has been started. So we don't need to start it again in secureCnxnFactory.
                 needStartZKServer = false;
             }

@@ -86,11 +86,12 @@ public class Follower extends Learner{
                             + " is less than our accepted epoch " + ZxidUtils.zxidToString(self.getAcceptedEpoch()));
                     throw new IOException("Error: Epoch of leader is lower");
                 }
-                syncWithLeader(newEpochZxid); //此处初始化follower的processor，并与leader同步
+                //NIOServerCnxnFactory 的zkServer在 syncWithLeader 中初始化
+                syncWithLeader(newEpochZxid); //此处初始化follower的processor，并与leader同步。
                 QuorumPacket qp = new QuorumPacket();
                 while (this.isRunning()) {//与leader交互
                     readPacket(qp);
-                    processPacket(qp);
+                    processPacket(qp);//处理leader发送的过来的请求，如心跳，发起proposal、commit等
                 }
             } catch (Exception e) {
                 LOG.warn("Exception when following the leader", e);
@@ -113,12 +114,13 @@ public class Follower extends Learner{
      * @param qp
      * @throws IOException
      */
-    protected void processPacket(QuorumPacket qp) throws Exception{
+    protected void processPacket(QuorumPacket qp) throws Exception{// follower 和leader 通信处理
         switch (qp.getType()) {
-        case Leader.PING:            
+        case Leader.PING://leader 和 follower 心跳检测
             ping(qp);            
             break;
-        case Leader.PROPOSAL:           
+        case Leader.PROPOSAL://leader 发起写请求提议，follower 需写入数据的更新
+            System.out.println("proposal zxid : " + qp.getZxid());
             TxnHeader hdr = new TxnHeader();
             Record txn = SerializeUtils.deserializeTxn(qp.getData(), hdr);
             if (hdr.getZxid() != lastQueued + 1) {
@@ -137,7 +139,8 @@ public class Follower extends Learner{
             
             fzk.logRequest(hdr, txn);
             break;
-        case Leader.COMMIT:
+        case Leader.COMMIT://上一步的提议成功之后，leader发起提交请求
+            System.out.println("commit zxid " + qp.getZxid());
             fzk.commit(qp.getZxid());
             break;
             
@@ -164,7 +167,7 @@ public class Follower extends Learner{
         case Leader.REVALIDATE:
             revalidate(qp);
             break;
-        case Leader.SYNC:
+        case Leader.SYNC://和leader进行数据同步
             fzk.sync();
             break;
         default:

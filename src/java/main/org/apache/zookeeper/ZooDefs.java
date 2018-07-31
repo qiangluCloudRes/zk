@@ -48,7 +48,7 @@ public class ZooDefs {
 
         public final int setACL = 7;
 
-        public final int getChildren = 8;
+        public final int getChildren = 8;//查询某个路径下的子目录
 
         public final int sync = 9;
 

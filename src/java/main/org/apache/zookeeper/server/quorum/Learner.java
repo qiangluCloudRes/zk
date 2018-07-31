@@ -530,7 +530,7 @@ public class Learner {
                         zk.takeSnapshot(syncSnapshot);
                         self.setCurrentEpoch(newEpoch);
                     }
-                    self.setZooKeeperServer(zk);
+                    self.setZooKeeperServer(zk);//设置NIOServerCnxnFactory的 zkServer引用
                     self.adminServer.setZooKeeperServer(zk);
                     break outerLoop;
                 case Leader.NEWLEADER: // Getting NEWLEADER here instead of in discovery 

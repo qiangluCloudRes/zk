@@ -80,12 +80,13 @@ public class FollowerZooKeeperServer extends LearnerZooKeeperServer {
 
     LinkedBlockingQueue<Request> pendingTxns = new LinkedBlockingQueue<Request>();
 
-    public void logRequest(TxnHeader hdr, Record txn) {
+    public void logRequest(TxnHeader hdr, Record txn) {//处理proposal 请求，并添加到pendingTxns中
+        System.out.println("logRequest:" + hdr.toString());
         Request request = new Request(hdr.getClientId(), hdr.getCxid(), hdr.getType(), hdr, txn, hdr.getZxid());
         if ((request.zxid & 0xffffffffL) != 0) {
             pendingTxns.add(request);
         }
-        syncProcessor.processRequest(request);
+        syncProcessor.processRequest(request);//触发生成快照
     }
 
     /**
@@ -94,7 +95,7 @@ public class FollowerZooKeeperServer extends LearnerZooKeeperServer {
      * the pendingTxns queue and hands it to the commitProcessor to commit.
      * @param zxid - must correspond to the head of pendingTxns if it exists
      */
-    public void commit(long zxid) {
+    public void commit(long zxid) {//proposal 请求处理后，commit并删除pendingTxns中的request
         if (pendingTxns.size() == 0) {
             LOG.warn("Committing " + Long.toHexString(zxid)
                     + " without seeing txn");

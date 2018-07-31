@@ -161,7 +161,7 @@ public class NIOServerCnxn extends ServerCnxn {
     }
 
     /** Read the request payload (everything following the length prefix) */
-    private void readPayload() throws IOException, InterruptedException {
+    private void readPayload() throws IOException, InterruptedException {//读取请求数据
         if (incomingBuffer.remaining() != 0) { // have we read length bytes?
             int rc = sock.read(incomingBuffer); // sock is non-blocking, so ok
             if (rc < 0) {
@@ -178,7 +178,7 @@ public class NIOServerCnxn extends ServerCnxn {
             if (!initialized) {
                 readConnectRequest();
             } else {
-                readRequest();
+                readRequest();//读取到IO请求数据，并由ZkServer处理
             }
             lenBuffer.clear();
             incomingBuffer = lenBuffer;
@@ -337,7 +337,7 @@ public class NIOServerCnxn extends ServerCnxn {
                         isPayload = true;
                     }
                     if (isPayload) { // not the case for 4letterword
-                        readPayload();
+                        readPayload();//io 去读操作
                     }
                     else {
                         // four letter words take care
@@ -378,7 +378,7 @@ public class NIOServerCnxn extends ServerCnxn {
     }
 
     private void readRequest() throws IOException {
-        zkServer.processPacket(this, incomingBuffer);
+        zkServer.processPacket(this, incomingBuffer);//提交请求数据
     }
 
     // Only called as callback from zkServer.processPacket()

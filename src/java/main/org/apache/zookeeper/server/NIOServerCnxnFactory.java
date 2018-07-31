@@ -388,7 +388,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             try {
                 while (!stopped) {
                     try {
-                        select();
+                        select();//客户端请求入口
                         processAcceptedConnections();//此处构建NIOServerCnxn，key.attch(NIOServerCnxn)
                         processInterestOpsUpdateRequests();
                     } catch (RuntimeException e) {
@@ -463,7 +463,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             cnxn.disableSelectable();
             key.interestOps(0);
             touchCnxn(cnxn);
-            workerPool.schedule(workRequest);
+            workerPool.schedule(workRequest);//处理IO，doWork() 中读取IO数据，并提交给处理链
         }
 
         /**
@@ -527,7 +527,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             }
 
             if (key.isReadable() || key.isWritable()) {
-                cnxn.doIO(key);
+                cnxn.doIO(key); //处理IO时间，并把事件提交给处理链
 
                 // Check if we shutdown or doIO() closed this connection
                 if (stopped) {
