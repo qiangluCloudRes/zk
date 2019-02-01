@@ -1113,7 +1113,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
              */
             while (running) {//判断当前线程是否退出，如果不退出，则不停的执行选主的流程
                 switch (getPeerState()) {//获取当前节点的状态，跟当前节点的状态执行不同的业务逻辑
-                case LOOKING://当前节点未能确认角色，或则集群中未选出leader
+                case LOOKING://当前节点未能确认角色，或则集群中未选出leader。触发投票
                     System.out.println("LOOKING");
 
                     if (Boolean.getBoolean("readonlymode.enabled")) {
@@ -1151,6 +1151,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                                 shuttingDownLE = false;
                                 startLeaderElection();
                             }
+                            //发起投票事件
                             setCurrentVote(makeLEStrategy().lookForLeader());
                         } catch (Exception e) {
                             LOG.warn("Unexpected exception", e);

@@ -102,13 +102,13 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
 
             // we do this in an attempt to ensure that not all of the servers
             // in the ensemble take a snapshot at the same time
-            int randRoll = r.nextInt(snapCount/2);
+            int randRoll = r.nextInt(snapCount/2);//避免所有的server在同一个时间进行snapshot
             while (true) {
                 Request si = null;
                 if (toFlush.isEmpty()) {
-                    si = queuedRequests.take();
+                    si = queuedRequests.take();//toFlush 为空，可以等待queuedRequests有请求过来
                 } else {
-                    si = queuedRequests.poll();
+                    si = queuedRequests.poll();//toFlush 不为空，如果当前queuedRequests 为空，立即返回
                     if (si == null) {
                         flush(toFlush);
                         continue;
@@ -119,17 +119,18 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                 }
                 if (si != null) {
                     // track the number of records written to the log
-                    if (zks.getZKDatabase().append(si)) {
+                    if (zks.getZKDatabase().append(si)) {//将proposal请求追加到log 成功
                         logCount++;
                         if (logCount > (snapCount / 2 + randRoll)) {
                             randRoll = r.nextInt(snapCount/2);
                             // roll the log
-                            zks.getZKDatabase().rollLog();
+                            zks.getZKDatabase().rollLog();//刷盘
                             // take a snapshot
                             if (snapInProcess != null && snapInProcess.isAlive()) {
                                 LOG.warn("Too busy to snap, skipping");
                             } else {
                                 snapInProcess = new ZooKeeperThread("Snapshot Thread") {
+                                    //开启异步线程生成快照
                                         public void run() {
                                             try {
                                                 zks.takeSnapshot();
@@ -142,12 +143,12 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                             }
                             logCount = 0;
                         }
-                    } else if (toFlush.isEmpty()) {
+                    } else if (toFlush.isEmpty()) {//如果追加log失败，并且当队列为空，则直接把请求提交给处理链的下一个处理器
                         // optimization for read heavy workloads
                         // iff this is a read, and there are no pending
                         // flushes (writes), then just pass this to the next
                         // processor
-                        if (nextProcessor != null) {
+                        if (nextProcessor != null) { //SendAckRequestProcessor  发送确认消息
                             nextProcessor.processRequest(si);
                             if (nextProcessor instanceof Flushable) {
                                 ((Flushable)nextProcessor).flush();
@@ -155,8 +156,9 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                         }
                         continue;
                     }
-                    toFlush.add(si);
-                    if (toFlush.size() > 1000) {
+                    toFlush.add(si);//追加log不管成功失败，把请求添加到toFlush
+                    if (toFlush.size() > 1000) {//如果toFlush 请求个数大于1000，优先执行flush，
+                        // 把请求提交到处理链的下一个处理器，这里是SendAckRequestProcessor，即发送回复
                         flush(toFlush);
                     }
                 }
@@ -175,7 +177,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
         if (toFlush.isEmpty())
             return;
 
-        zks.getZKDatabase().commit();
+        zks.getZKDatabase().commit();//提交log,发送回复
         while (!toFlush.isEmpty()) {
             Request i = toFlush.remove();
             if (nextProcessor != null) {

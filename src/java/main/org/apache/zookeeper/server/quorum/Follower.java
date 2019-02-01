@@ -57,7 +57,11 @@ public class Follower extends Learner{
         return sb.toString();
     }
 
-    /**
+    /** 启动follower, 这部分逻辑只处理来自leader的通信信息，
+     * 如启动时数据同步，启动后处理leader的proposal，commit、ping等通知
+     *
+     * 客户端的请求处理在2181端口
+     *
      * the main method called by the follower to follow the leader
      *
      * @throws InterruptedException
@@ -75,22 +79,22 @@ public class Follower extends Learner{
             QuorumServer leaderServer = findLeader();//查找leaderIP信息
             try {
                 connectToLeader(leaderServer.addr, leaderServer.hostname);//主动和leader建立连接，2888
-                long newEpochZxid = registerWithLeader(Leader.FOLLOWERINFO);
+                long newEpochZxid = registerWithLeader(Leader.FOLLOWERINFO);//和leader通信同步并获取leader的Zxid
                 if (self.isReconfigStateChange())
                    throw new Exception("learned about role change");
                 //check to see if the leader zxid is lower than ours
                 //this should never happen but is just a safety check
                 long newEpoch = ZxidUtils.getEpochFromZxid(newEpochZxid);
-                if (newEpoch < self.getAcceptedEpoch()) {
+                if (newEpoch < self.getAcceptedEpoch()) {//如果发现leader的Epoch 更低，抛出异常，退出。即需要重启
                     LOG.error("Proposed leader epoch " + ZxidUtils.zxidToString(newEpochZxid)
                             + " is less than our accepted epoch " + ZxidUtils.zxidToString(self.getAcceptedEpoch()));
                     throw new IOException("Error: Epoch of leader is lower");
                 }
                 //NIOServerCnxnFactory 的zkServer在 syncWithLeader 中初始化
-                syncWithLeader(newEpochZxid); //此处初始化follower的processor，并与leader同步。
+                syncWithLeader(newEpochZxid); //此处初始化follower的processor，并与leader开启同步数据（初始化同步）。
                 QuorumPacket qp = new QuorumPacket();
-                while (this.isRunning()) {//与leader交互
-                    readPacket(qp);
+                while (this.isRunning()) {//循环处理leader发送过来的数据包
+                    readPacket(qp);//读取leader的数据
                     processPacket(qp);//处理leader发送的过来的请求，如心跳，发起proposal、commit等
                 }
             } catch (Exception e) {
@@ -114,7 +118,7 @@ public class Follower extends Learner{
      * @param qp
      * @throws IOException
      */
-    protected void processPacket(QuorumPacket qp) throws Exception{// follower 和leader 通信处理
+    protected void processPacket(QuorumPacket qp) throws Exception{// 当前节点 follower 和leader 通信处理。
         switch (qp.getType()) {
         case Leader.PING://leader 和 follower 心跳检测
             ping(qp);            
@@ -144,7 +148,7 @@ public class Follower extends Learner{
             fzk.commit(qp.getZxid());
             break;
             
-        case Leader.COMMITANDACTIVATE:
+        case Leader.COMMITANDACTIVATE://通知follower commit的数据可以对client服务？
            // get the new configuration from the request
            Request request = fzk.pendingTxns.element();
            SetDataTxn setDataTxn = (SetDataTxn) request.getTxn();                                                                                                      
@@ -167,7 +171,7 @@ public class Follower extends Learner{
         case Leader.REVALIDATE:
             revalidate(qp);
             break;
-        case Leader.SYNC://和leader进行数据同步
+        case Leader.SYNC://和leader进行数据同步 ?
             fzk.sync();
             break;
         default:

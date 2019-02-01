@@ -412,7 +412,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
         }
     }
     
-    public void commit(Request request) {//处理来自leader的proposal、commit等请求。是因为所有的写请求都转发给我leader处理
+    public void commit(Request request) {//处理来自leader的proposal、commit等请求。是因为所有的写请求都转发给leader处理
         if (stopped || request == null) {
             return;
         }

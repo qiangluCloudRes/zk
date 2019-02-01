@@ -290,12 +290,13 @@ public class Learner {
         self.authLearner.authenticate(sock, hostname);
 
         leaderIs = BinaryInputArchive.getArchive(new BufferedInputStream(
-                sock.getInputStream()));//成功与leader连接,封装连接后的输入输出流
+                sock.getInputStream()));//成功与leader连接,封装连接后的输入流
         bufferedOutput = new BufferedOutputStream(sock.getOutputStream());
-        leaderOs = BinaryOutputArchive.getArchive(bufferedOutput);
+        leaderOs = BinaryOutputArchive.getArchive(bufferedOutput);//成功与leader连接,封装连接后的输出流
     }   
     
-    /**
+    /** 建立连接诶后与leader 握手，并从leader得到zxid，即和leader的同步点
+     *
      * Once connected to the leader, perform the handshake protocol to
      * establish a following / observing connection. 
      * @param pktType
@@ -306,9 +307,10 @@ public class Learner {
         /*
          * Send follower info, including last zxid and sid
          */
+        //当前follower的 zxid
     	long lastLoggedZxid = self.getLastLoggedZxid();
         QuorumPacket qp = new QuorumPacket();                
-        qp.setType(pktType);
+        qp.setType(pktType);//消息类型
         qp.setZxid(ZxidUtils.makeZxid(self.getAcceptedEpoch(), 0));
         
         /*
@@ -319,19 +321,21 @@ public class Learner {
         BinaryOutputArchive boa = BinaryOutputArchive.getArchive(bsid);
         boa.writeRecord(li, "LearnerInfo");
         qp.setData(bsid.toByteArray());
-        
+        //加消息发送给leader
         writePacket(qp, true);
-        readPacket(qp);        
+        //读取leader的回复
+        readPacket(qp);
+        //从leader发过来的Zxid 中获取选举轮次
         final long newEpoch = ZxidUtils.getEpochFromZxid(qp.getZxid());
-		if (qp.getType() == Leader.LEADERINFO) {
+		if (qp.getType() == Leader.LEADERINFO) {//来自leader 的leaderInfo
         	// we are connected to a 1.0 server so accept the new epoch and read the next packet
         	leaderProtocolVersion = ByteBuffer.wrap(qp.getData()).getInt();
         	byte epochBytes[] = new byte[4];
         	final ByteBuffer wrappedEpochBytes = ByteBuffer.wrap(epochBytes);
-        	if (newEpoch > self.getAcceptedEpoch()) {
+        	if (newEpoch > self.getAcceptedEpoch()) {//来自leader的消息中，选举轮次大于当前节点的选举轮次
         		wrappedEpochBytes.putInt((int)self.getCurrentEpoch());
-        		self.setAcceptedEpoch(newEpoch);
-        	} else if (newEpoch == self.getAcceptedEpoch()) {
+        		self.setAcceptedEpoch(newEpoch);//用leader的选举轮次代替本地的
+        	} else if (newEpoch == self.getAcceptedEpoch()) {//如果选举轮次相同
         		// since we have already acked an epoch equal to the leaders, we cannot ack
         		// again, but we still need to send our lastZxid to the leader so that we can
         		// sync with it if it does assume leadership of the epoch.
@@ -340,6 +344,7 @@ public class Learner {
         	} else {
         		throw new IOException("Leaders epoch, " + newEpoch + " is less than accepted epoch, " + self.getAcceptedEpoch());
         	}
+        	//回复leader,带上本地的lastLoggedZxid
         	QuorumPacket ackNewEpoch = new QuorumPacket(Leader.ACKEPOCH, lastLoggedZxid, epochBytes, null);
         	writePacket(ackNewEpoch, true);
             return ZxidUtils.makeZxid(newEpoch, 0);
@@ -362,8 +367,8 @@ public class Learner {
      * @throws InterruptedException
      */
     protected void syncWithLeader(long newLeaderZxid) throws Exception{
-        QuorumPacket ack = new QuorumPacket(Leader.ACK, 0, null, null);
-        QuorumPacket qp = new QuorumPacket();
+        QuorumPacket ack = new QuorumPacket(Leader.ACK, 0, null, null);//回复数据包
+        QuorumPacket qp = new QuorumPacket();//请求数据包
         long newEpoch = ZxidUtils.getEpochFromZxid(newLeaderZxid);
         
         QuorumVerifier newLeaderQV = null;
@@ -372,15 +377,20 @@ public class Learner {
         // For SNAP and TRUNC the snapshot is needed to save that history
         boolean snapshotNeeded = true;
         boolean syncSnapshot = false;
+        /**
+         * 读取来自leader的数据包,在 registerWithLeader时，follower将本地的Zxid发送给leader，leader会作出回复
+         */
         readPacket(qp);
         LinkedList<Long> packetsCommitted = new LinkedList<Long>();
         LinkedList<PacketInFlight> packetsNotCommitted = new LinkedList<PacketInFlight>();
         synchronized (zk) {
+
+            //leader 回复Diff 则不需要同步快照
             if (qp.getType() == Leader.DIFF) {
                 LOG.info("Getting a diff from the leader 0x{}", Long.toHexString(qp.getZxid()));
                 snapshotNeeded = false;
             }
-            else if (qp.getType() == Leader.SNAP) {
+            else if (qp.getType() == Leader.SNAP) {//需要从leader同步快照文件
                 LOG.info("Getting a snapshot from leader 0x" + Long.toHexString(qp.getZxid()));
                 // The leader is going to dump the database
                 // db is clear as part of deserializeSnapshot()
@@ -401,7 +411,7 @@ public class Learner {
 
                 // immediately persist the latest snapshot when there is txn log gap
                 syncSnapshot = true;
-            } else if (qp.getType() == Leader.TRUNC) {
+            } else if (qp.getType() == Leader.TRUNC) {//将本地的log回退，同步leader的数据？
                 //we need to truncate the log to the lastzxid of the leader
                 LOG.warn("Truncating log to get in sync with the leader 0x"
                         + Long.toHexString(qp.getZxid()));
@@ -415,7 +425,7 @@ public class Learner {
                 zk.getZKDatabase().setlastProcessedZxid(qp.getZxid());
 
             }
-            else {
+            else {//异常退出
                 LOG.error("Got unexpected packet from leader: {}, exiting ... ",
                           LearnerHandler.packetToString(qp));
                 System.exit(13);
@@ -562,6 +572,9 @@ public class Learner {
         writePacket(ack, true);
         sock.setSoTimeout(self.tickTime * self.syncLimit);
         //followerZooKeeperServer 重写了ZooKeeperServer的setupRequestProcessors 方法,  follower 的processor 在此处初始化
+        /**
+         * 数据同步结束，启动follower server
+         */
         zk.startup();
         /*
          * Update the election vote here to ensure that all members of the

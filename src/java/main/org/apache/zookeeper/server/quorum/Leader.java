@@ -383,6 +383,9 @@ public class Leader {
 
                         BufferedInputStream is = new BufferedInputStream(
                                 s.getInputStream());
+                        /**
+                         * 收到follower 连接请求，新开线程处理。每个follower的请求都由独立的线程处理
+                         */
                         LearnerHandler fh = new LearnerHandler(s, is, Leader.this);
                         fh.start();
                     } catch (SocketException e) {
@@ -445,6 +448,9 @@ public class Leader {
 
             // Start thread that waits for connection requests from
             // new followers.
+            /**
+             * 新开线程处理follower 的连接，follower节点启动时数据初始化或者同步，集群健康检查等
+             */
             cnxAcceptor = new LearnerCnxAcceptor();
             cnxAcceptor.start();
 
@@ -573,6 +579,9 @@ public class Leader {
             // If not null then shutdown this leader
             String shutdownMessage = null;
 
+            /**
+             * 集群状态监测
+             */
             while (true) {
                 synchronized (this) {
                     long start = Time.currentElapsedTime();

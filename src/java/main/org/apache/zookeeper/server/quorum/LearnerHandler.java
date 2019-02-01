@@ -362,7 +362,13 @@ public class LearnerHandler extends ZooKeeperThread {
     @Override
     public void run() {
         try {
+            /**
+             * 更新leader的follower列表
+             */
             leader.addLearnerHandler(this);
+            /**
+             *  follower 的 ack 等待时间，超过这个时间就认为follower 没有回复
+             */
             tickOfNextAckDeadline = leader.self.tick.get()
                     + leader.self.initLimit + leader.self.syncLimit;
 
@@ -371,6 +377,9 @@ public class LearnerHandler extends ZooKeeperThread {
             oa = BinaryOutputArchive.getArchive(bufferedOutput);
 
             QuorumPacket qp = new QuorumPacket();
+            /**
+             * 读取follower发送的数据包，数据包的类型不对直接返回不做处理
+             */
             ia.readRecord(qp, "packet");
             if(qp.getType() != Leader.FOLLOWERINFO && qp.getType() != Leader.OBSERVERINFO){
                 LOG.error("First packet " + qp.toString()
@@ -381,7 +390,7 @@ public class LearnerHandler extends ZooKeeperThread {
             byte learnerInfoData[] = qp.getData();
             if (learnerInfoData != null) {
                 ByteBuffer bbsid = ByteBuffer.wrap(learnerInfoData);
-                if (learnerInfoData.length >= 8) {
+                if (learnerInfoData.length >= 8) {//从follower的数据包中获取follower的id
                     this.sid = bbsid.getLong();
                 }
                 if (learnerInfoData.length >= 12) {
@@ -393,7 +402,7 @@ public class LearnerHandler extends ZooKeeperThread {
                         throw new IOException("Follower is ahead of the leader (has a later activated configuration)");
                     }
                 }
-            } else {
+            } else {//无法获取到follower的sid，leader分配
                 this.sid = leader.followerCounter.getAndDecrement();
             }
 
@@ -408,11 +417,17 @@ public class LearnerHandler extends ZooKeeperThread {
                   learnerType = LearnerType.OBSERVER;
             }
 
+            /**
+             * 读取follower的 Zxid
+             */
             long lastAcceptedEpoch = ZxidUtils.getEpochFromZxid(qp.getZxid());
 
             long peerLastZxid;
             StateSummary ss = null;
             long zxid = qp.getZxid();
+            /**
+             * 获取新的Epoch（暂时没明白作用）
+             */
             long newEpoch = leader.getEpochToPropose(this.getSid(), lastAcceptedEpoch);
             long newLeaderZxid = ZxidUtils.makeZxid(newEpoch, 0);
 
@@ -421,8 +436,9 @@ public class LearnerHandler extends ZooKeeperThread {
                 long epoch = ZxidUtils.getEpochFromZxid(zxid);
                 ss = new StateSummary(epoch, zxid);
                 // fake the message
+                //通知leader更新参与投票的follower的信息
                 leader.waitForEpochAck(this.getSid(), ss);
-            } else {
+            } else {//版本信息不对，从新发送信息给follower获取
                 byte ver[] = new byte[4];
                 ByteBuffer.wrap(ver).putInt(0x10000);
                 QuorumPacket newEpochPacket = new QuorumPacket(Leader.LEADERINFO, newLeaderZxid, ver, null);
@@ -443,6 +459,9 @@ public class LearnerHandler extends ZooKeeperThread {
            
             // Take any necessary action if we need to send TRUNC or DIFF
             // startForwarding() will be called in all cases
+            /**
+             * 判断是否需要向follower发送snapshot 文件
+             */
             boolean needSnap = syncFollower(peerLastZxid, leader.zk.getZKDatabase(), leader);
             
             LOG.debug("Sending NEWLEADER message to " + sid);
@@ -462,7 +481,7 @@ public class LearnerHandler extends ZooKeeperThread {
             bufferedOutput.flush();
 
             /* if we are not truncating or sending a diff just send a snapshot */
-            if (needSnap) {
+            if (needSnap) {//需要发送snapshot文件给follower
                 boolean exemptFromThrottle = getLearnerType() != LearnerType.OBSERVER;
                 LearnerSnapshot snapshot = 
                         leader.getLearnerSnapshotThrottler().beginSnapshot(exemptFromThrottle);
@@ -528,7 +547,9 @@ public class LearnerHandler extends ZooKeeperThread {
             //
             LOG.debug("Sending UPTODATE message to " + sid);      
             queuedPackets.add(new QuorumPacket(Leader.UPTODATE, -1, null, null));
-
+            /**
+             * 启动工作处理完成，进入循环，定期和follower保持心跳
+             */
             while (true) {
                 qp = new QuorumPacket();
                 ia.readRecord(qp, "packet");

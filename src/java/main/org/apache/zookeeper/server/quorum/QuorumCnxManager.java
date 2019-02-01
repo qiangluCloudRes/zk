@@ -598,7 +598,7 @@ public class QuorumCnxManager {
         /*
          * If sending message to myself, then simply enqueue it (loopback).
          */
-        if (this.mySid == sid) {
+        if (this.mySid == sid) {//如果消息是发给自己的，则直接保存到接受队列中
              b.position(0);
              addToRecvQueue(new Message(b.duplicate(), sid));
             /*
@@ -1267,7 +1267,7 @@ public class QuorumCnxManager {
         }
     }
 
-    /**
+    /** 收到的选票信息
      * Retrieves and removes a message at the head of this queue,
      * waiting up to the specified wait time if necessary for an element to
      * become available.
