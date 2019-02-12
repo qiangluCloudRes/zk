@@ -40,7 +40,7 @@ class AckRequestProcessor implements RequestProcessor {
     /**
      * Forward the request as an ACK to the leader
      */
-    public void processRequest(Request request) {
+    public void processRequest(Request request) {//leader 发送proposal给follower 后，处理ACK回复
         QuorumPeer self = leader.self;
         if(self != null)
             leader.processAck(self.getId(), request.zxid, null);

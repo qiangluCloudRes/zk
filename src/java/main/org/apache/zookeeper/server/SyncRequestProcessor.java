@@ -119,7 +119,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                 }
                 if (si != null) {
                     // track the number of records written to the log
-                    if (zks.getZKDatabase().append(si)) {//将proposal请求追加到log 成功
+                    if (zks.getZKDatabase().append(si)) {//将proposal请求追加到快照log 成功
                         logCount++;
                         if (logCount > (snapCount / 2 + randRoll)) {
                             randRoll = r.nextInt(snapCount/2);
@@ -158,7 +158,8 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
                     }
                     toFlush.add(si);//追加log不管成功失败，把请求添加到toFlush
                     if (toFlush.size() > 1000) {//如果toFlush 请求个数大于1000，优先执行flush，
-                        // 把请求提交到处理链的下一个处理器，这里是SendAckRequestProcessor，即发送回复
+                        // 把请求提交到处理链的下一个处理器，如果当前节点是follower，则nextProcessor是SendAckRequestProcessor，
+                        // 即接收到来自leader的proposal生成快照后，给leader发送ACK，表明proposal 成功，下一步可以commit（两阶段提交）
                         flush(toFlush);
                     }
                 }
@@ -181,7 +182,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements
         while (!toFlush.isEmpty()) {
             Request i = toFlush.remove();
             if (nextProcessor != null) {
-                nextProcessor.processRequest(i);
+                nextProcessor.processRequest(i);//如果是follower，则proposal处理完后给leader发送ack
             }
         }
         if (nextProcessor != null && nextProcessor instanceof Flushable) {

@@ -548,7 +548,7 @@ public class LearnerHandler extends ZooKeeperThread {
             LOG.debug("Sending UPTODATE message to " + sid);      
             queuedPackets.add(new QuorumPacket(Leader.UPTODATE, -1, null, null));
             /**
-             * 启动工作处理完成，进入循环，定期和follower保持心跳
+             * 启动工作处理完成，进入循环，定期和follower保持心跳,处理client提交到follower的写请求
              */
             while (true) {
                 qp = new QuorumPacket();
@@ -563,14 +563,13 @@ public class LearnerHandler extends ZooKeeperThread {
                 }
                 tickOfNextAckDeadline = leader.self.tick.get() + leader.self.syncLimit;
 
-
                 ByteBuffer bb;
                 long sessionId;
                 int cxid;
                 int type;
 
                 switch (qp.getType()) {
-                case Leader.ACK:
+                case Leader.ACK://处理follower的ACK请求，如leader 给follower 发送 proposal处理结束后会发送ACK
                     if (this.learnerType == LearnerType.OBSERVER) {
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("Received ACK from Observer  " + this.sid);
@@ -620,7 +619,7 @@ public class LearnerHandler extends ZooKeeperThread {
                     qp.setData(bos.toByteArray());
                     queuedPackets.add(qp);
                     break;
-                case Leader.REQUEST:
+                case Leader.REQUEST://当follower接受到写请求时，通过与leader建立在2888端口上的连接将请求转发给leader
                     bb = ByteBuffer.wrap(qp.getData());
                     sessionId = bb.getLong();
                     cxid = bb.getInt();
@@ -633,7 +632,7 @@ public class LearnerHandler extends ZooKeeperThread {
                         si = new Request(null, sessionId, cxid, type, bb, qp.getAuthinfo());
                     }
                     si.setOwner(this);
-                    leader.zk.submitLearnerRequest(si);
+                    leader.zk.submitLearnerRequest(si);//处理follower请求
                     break;
                 default:
                     LOG.warn("unexpected quorum packet, type: {}", packetToString(qp));

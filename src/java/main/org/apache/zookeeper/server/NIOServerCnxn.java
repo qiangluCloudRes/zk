@@ -310,7 +310,7 @@ public class NIOServerCnxn extends ServerCnxn {
      * Handles read/write IO on connection.
      */
     void doIO(SelectionKey k) throws InterruptedException {
-        //处理client的读写事件，如client的update、delete、get 等对节点的数据操作（最后转发给leader处理）、查询
+        //处理client的读写事件，如client的update、delete、get 等对节点的数据操作（写操作最后转发给leader处理）、查询
         try {
             if (isSocketOpen() == false) {
                 LOG.warn("trying to do i/o on a null socket for session:0x"
@@ -337,7 +337,7 @@ public class NIOServerCnxn extends ServerCnxn {
                         isPayload = true;
                     }
                     if (isPayload) { // not the case for 4letterword
-                        readPayload();//io 去读操作
+                        readPayload();//io读操作
                     }
                     else {
                         // four letter words take care

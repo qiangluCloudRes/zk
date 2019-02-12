@@ -470,14 +470,14 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
          * Iterate over the queue of accepted connections that have been
          * assigned to this thread but not yet placed on the selector.
          */
-        private void processAcceptedConnections() {
+        private void processAcceptedConnections() {//将新的客户端socket注册到 selector，监听感兴趣的事件
             SocketChannel accepted;
             while (!stopped && (accepted = acceptedQueue.poll()) != null) {
                 SelectionKey key = null;
                 try {
                     key = accepted.register(selector, SelectionKey.OP_READ);//注册：只对读事件感兴趣
                     NIOServerCnxn cnxn = createConnection(accepted, key, this);//构建IO处理对象
-                    key.attach(cnxn);
+                    key.attach(cnxn);//将cnxn 绑定到SelectionKey，当发生感兴趣的事件时，直接能从SelectionKey 获取到cnxn对象处理事件
                     addCnxn(cnxn);
                 } catch (IOException e) {
                     // register, createConnection
